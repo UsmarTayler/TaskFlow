@@ -1,0 +1,104 @@
+@model TaskFlow.Models.Project
+@using TaskFlow.Models
+
+@{
+    ViewData["Title"] = Model.Name;
+    var statusBadge = Model.Status == ProjectStatus.Active    ? "bg-success"
+                    : Model.Status == ProjectStatus.OnHold    ? "bg-warning text-dark"
+                    : Model.Status == ProjectStatus.Completed ? "bg-primary"
+                    : "bg-secondary";
+}
+
+<!-- Header -->
+<div class="d-flex align-items-start justify-content-between mb-2 flex-wrap gap-2">
+    <div>
+        <a asp-controller="Projects" asp-action="Index" class="text-muted small text-decoration-none">← All Projects</a>
+        <h3 class="mt-1 mb-0">@Model.Name</h3>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="badge @statusBadge fs-6">@Model.Status</span>
+        @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
+        {
+            <a asp-controller="WorkItems" asp-action="Create" asp-route-projectId="@Model.ProjectId"
+               class="btn btn-primary btn-sm">+ Add Task</a>
+            <a asp-controller="WorkItems" asp-action="Export" asp-route-projectId="@Model.ProjectId"
+               class="btn btn-outline-secondary btn-sm">⬇ Export CSV</a>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Description))
+{
+    <p class="text-muted mb-3">@Model.Description</p>
+}
+
+<!-- Progress -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body py-3">
+        <div class="d-flex justify-content-between small mb-1">
+            <span>Progress</span>
+            <span class="fw-semibold">@Model.DoneItems / @Model.TotalItems tasks complete — @Model.ProgressPct%</span>
+        </div>
+        <div class="progress" style="height:8px">
+            <div class="progress-bar bg-success" style="width:@Model.ProgressPct%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Work Items Table -->
+@if (!Model.WorkItems.Any())
+{
+    <div class="alert alert-info">No tasks yet.
+        @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
+        {
+            <a asp-controller="WorkItems" asp-action="Create" asp-route-projectId="@Model.ProjectId">Add the first one.</a>
+        }
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Assigned To</th>
+                    <th>Due</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var w in Model.WorkItems.OrderBy(w => w.Status).ThenByDescending(w => w.Priority))
+                {
+                    var pBadge = w.Priority == Priority.Critical ? "bg-danger"
+                               : w.Priority == Priority.High     ? "bg-warning text-dark"
+                               : w.Priority == Priority.Medium   ? "bg-info text-dark"
+                               : "bg-secondary";
+                    var sBadge = w.Status == ItemStatus.Done       ? "bg-success"
+                               : w.Status == ItemStatus.InProgress ? "bg-primary"
+                               : w.Status == ItemStatus.InReview   ? "bg-info text-dark"
+                               : "bg-light text-dark border";
+                    var sLabel = w.Status == ItemStatus.InProgress ? "In Progress"
+                               : w.Status == ItemStatus.InReview   ? "In Review"
+                               : w.Status.ToString();
+                    <tr>
+                        <td>
+                            <a asp-controller="WorkItems" asp-action="Detail" asp-route-id="@w.WorkItemId"
+                               class="fw-semibold text-decoration-none @(w.Status == ItemStatus.Done ? "text-muted text-decoration-line-through" : "")">
+                                @w.Title
+                            </a>
+                            @if (w.IsOverdue) { <span class="badge bg-danger ms-1 small">Overdue</span> }
+                        </td>
+                        <td><span class="badge bg-light text-dark border">@w.Type</span></td>
+                        <td><span class="badge @pBadge">@w.Priority</span></td>
+                        <td><span class="badge @sBadge">@sLabel</span></td>
+                        <td class="text-muted small">@(w.AssignedTo?.FullName ?? "—")</td>
+                        <td class="text-muted small">@(w.DueDate?.ToString("MMM d") ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

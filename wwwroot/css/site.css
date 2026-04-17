@@ -1,0 +1,54 @@
+/* ── Base ───────────────────────────────────────────────────────────────── */
+body {
+    font-family: system-ui, "Segoe UI", Arial, sans-serif;
+}
+
+/* ── Brand ──────────────────────────────────────────────────────────────── */
+.navbar-brand {
+    letter-spacing: 0.02em;
+    font-size: 1.25rem;
+}
+
+/* ── Avatar circle in navbar ────────────────────────────────────────────── */
+.avatar-circle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #0d6efd;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.card {
+    border-radius: 0.6rem;
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+.table th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6c757d;
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+.badge {
+    font-size: 0.72rem;
+    padding: 0.35em 0.65em;
+}
+
+/* ── Progress bars ───────────────────────────────────────────────────────── */
+.progress {
+    border-radius: 999px;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+footer {
+    font-size: 0.8rem;
+}

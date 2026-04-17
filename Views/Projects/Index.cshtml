@@ -1,0 +1,98 @@
+@model List<TaskFlow.Models.Project>
+@using TaskFlow.Models
+
+@{
+    ViewData["Title"] = "Projects";
+    var currentStatus = ViewBag.Status as string ?? "";
+    var currentQuery  = ViewBag.Query  as string ?? "";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h3 class="mb-0">Projects</h3>
+    @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
+    {
+        <a asp-action="Create" class="btn btn-primary">+ New Project</a>
+    }
+</div>
+
+<!-- Search & filter bar -->
+<form method="get" class="row g-2 mb-4">
+    <div class="col-sm-6 col-md-5">
+        <div class="input-group">
+            <input name="q" class="form-control" placeholder="Search projects…"
+                   value="@currentQuery" />
+            <button class="btn btn-outline-secondary" type="submit">Search</button>
+        </div>
+    </div>
+    <div class="col-sm-4 col-md-3">
+        <select name="status" class="form-select" onchange="this.form.submit()">
+            <option value="" selected="@(currentStatus == "" ? "selected" : null)">All statuses</option>
+            @foreach (var s in Enum.GetValues<ProjectStatus>())
+            {
+                <option value="@s" selected="@(currentStatus == s.ToString() ? "selected" : null)">@s</option>
+            }
+        </select>
+    </div>
+    @if (!string.IsNullOrEmpty(currentQuery) || !string.IsNullOrEmpty(currentStatus))
+    {
+        <div class="col-auto">
+            <a asp-action="Index" class="btn btn-outline-danger">✕ Clear</a>
+        </div>
+    }
+</form>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">No projects match your search.</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var p in Model)
+        {
+            var statusBadge = p.Status == ProjectStatus.Active    ? "bg-success"
+                           : p.Status == ProjectStatus.OnHold    ? "bg-warning text-dark"
+                           : p.Status == ProjectStatus.Completed ? "bg-primary"
+                           : "bg-secondary";
+            <div class="col-md-6 col-xl-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <a asp-action="Detail" asp-route-id="@p.ProjectId"
+                               class="h5 fw-bold text-decoration-none text-dark lh-sm">@p.Name</a>
+                            <span class="badge @statusBadge ms-2 flex-shrink-0">@p.Status</span>
+                        </div>
+
+                        <p class="text-muted small flex-grow-1 mb-3">
+                            @(p.Description?.Length > 110 ? p.Description[..110] + "…" : p.Description)
+                        </p>
+
+                        <div class="mb-1 d-flex justify-content-between small">
+                            <span class="text-muted">Progress</span>
+                            <span class="fw-semibold">@p.DoneItems / @p.TotalItems done</span>
+                        </div>
+                        <div class="progress mb-3" style="height:6px">
+                            <div class="progress-bar bg-success" style="width:@p.ProgressPct%"></div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-auto">
+                            <small class="text-muted">
+                                @if (p.DueDate.HasValue)
+                                {
+                                    var overdue = p.DueDate < DateTime.UtcNow && p.Status == ProjectStatus.Active;
+                                    <span class="@(overdue ? "text-danger fw-semibold" : "")">
+                                        @(overdue ? "⚠ Overdue · " : "")Due @p.DueDate.Value.ToString("MMM d, yyyy")
+                                    </span>
+                                }
+                            </small>
+                            <a asp-action="Detail" asp-route-id="@p.ProjectId"
+                               class="btn btn-outline-primary btn-sm">View →</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <p class="text-muted small mt-3">Showing @Model.Count project@(Model.Count == 1 ? "" : "s")</p>
+}

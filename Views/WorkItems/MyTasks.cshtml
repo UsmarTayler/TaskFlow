@@ -1,0 +1,56 @@
+@model List<TaskFlow.Models.WorkItem>
+@using TaskFlow.Models
+
+@{
+    ViewData["Title"] = "My Tasks";
+}
+
+<h3 class="mb-4">My Tasks</h3>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">You have no tasks assigned to you yet.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Title</th>
+                    <th>Project</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Due</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var w in Model.OrderBy(w => w.DueDate))
+                {
+                    var pBadge = w.Priority == Priority.Critical ? "bg-danger"
+                               : w.Priority == Priority.High     ? "bg-warning text-dark"
+                               : w.Priority == Priority.Medium   ? "bg-info text-dark"
+                               : "bg-secondary";
+                    var sBadge = w.Status == ItemStatus.Done       ? "bg-success"
+                               : w.Status == ItemStatus.InProgress ? "bg-primary"
+                               : w.Status == ItemStatus.InReview   ? "bg-info text-dark"
+                               : "bg-light text-dark border";
+                    var sLabel = w.Status == ItemStatus.InProgress ? "In Progress"
+                               : w.Status == ItemStatus.InReview   ? "In Review"
+                               : w.Status.ToString();
+                    <tr class="@(w.IsOverdue ? "table-danger" : "")">
+                        <td>
+                            <a asp-controller="WorkItems" asp-action="Detail" asp-route-id="@w.WorkItemId"
+                               class="fw-semibold text-decoration-none">@w.Title</a>
+                            @if (w.IsOverdue) { <span class="badge bg-danger ms-1 small">Overdue</span> }
+                        </td>
+                        <td class="text-muted small">@w.Project?.Name</td>
+                        <td><span class="badge @pBadge">@w.Priority</span></td>
+                        <td><span class="badge @sBadge">@sLabel</span></td>
+                        <td class="text-muted small">@(w.DueDate?.ToString("MMM d, yyyy") ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

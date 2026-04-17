@@ -1,0 +1,127 @@
+@model TaskFlow.Models.WorkItem
+@using TaskFlow.Models
+
+@{
+    ViewData["Title"] = Model.Title;
+    var pBadge = Model.Priority == Priority.Critical ? "bg-danger"
+               : Model.Priority == Priority.High     ? "bg-warning text-dark"
+               : Model.Priority == Priority.Medium   ? "bg-info text-dark"
+               : "bg-secondary";
+    var sBadge = Model.Status == ItemStatus.Done       ? "bg-success"
+               : Model.Status == ItemStatus.InProgress ? "bg-primary"
+               : Model.Status == ItemStatus.InReview   ? "bg-info text-dark"
+               : "bg-light text-dark border";
+    var sLabel = Model.Status == ItemStatus.InProgress ? "In Progress"
+               : Model.Status == ItemStatus.InReview   ? "In Review"
+               : Model.Status.ToString();
+}
+
+<a asp-controller="Projects" asp-action="Detail" asp-route-id="@Model.ProjectId"
+   class="text-muted small text-decoration-none">← @Model.Project?.Name</a>
+
+<div class="row mt-3 g-4">
+    <!-- ── Main info ──────────────────────────────────────────────────────────── -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex gap-2 mb-3">
+                    <span class="badge bg-light text-dark border">@Model.Type</span>
+                    <span class="badge @pBadge">@Model.Priority</span>
+                    <span class="badge @sBadge">@sLabel</span>
+                    @if (Model.IsOverdue) { <span class="badge bg-danger">Overdue</span> }
+                </div>
+
+                <h4 class="mb-3">@Model.Title</h4>
+
+                @if (!string.IsNullOrEmpty(Model.Description))
+                {
+                    <p class="text-muted">@Model.Description</p>
+                }
+                else
+                {
+                    <p class="text-muted fst-italic">No description provided.</p>
+                }
+            </div>
+        </div>
+
+        <!-- ── Update Status ──────────────────────────────────────────────────── -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-semibold mb-3">Update Status</h6>
+                <form asp-controller="WorkItems" asp-action="UpdateStatus" method="post"
+                      class="d-flex gap-2 align-items-center">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id"        value="@Model.WorkItemId" />
+                    <input type="hidden" name="projectId" value="@Model.ProjectId" />
+                    <select name="status" class="form-select" style="max-width:180px">
+                        @foreach (ItemStatus s in Enum.GetValues<ItemStatus>())
+                        {
+                            var label = s == ItemStatus.InProgress ? "In Progress"
+                                      : s == ItemStatus.InReview   ? "In Review"
+                                      : s.ToString();
+                            if (s == Model.Status)
+                            { <option value="@s" selected>@label</option> }
+                            else
+                            { <option value="@s">@label</option> }
+                        }
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Sidebar ────────────────────────────────────────────────────────────── -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-semibold mb-3">Details</h6>
+                <dl class="row small mb-0">
+                    <dt class="col-5 text-muted">Project</dt>
+                    <dd class="col-7">
+                        <a asp-controller="Projects" asp-action="Detail" asp-route-id="@Model.ProjectId">
+                            @Model.Project?.Name
+                        </a>
+                    </dd>
+
+                    <dt class="col-5 text-muted">Assigned To</dt>
+                    <dd class="col-7">@(Model.AssignedTo?.FullName ?? "Unassigned")</dd>
+
+                    <dt class="col-5 text-muted">Created By</dt>
+                    <dd class="col-7">@(Model.CreatedBy?.FullName ?? "—")</dd>
+
+                    <dt class="col-5 text-muted">Due Date</dt>
+                    <dd class="col-7">@(Model.DueDate?.ToString("MMM d, yyyy") ?? "—")</dd>
+
+                    <dt class="col-5 text-muted">Created</dt>
+                    <dd class="col-7">@Model.CreatedAt.ToString("MMM d, yyyy")</dd>
+
+                    <dt class="col-5 text-muted">Last Updated</dt>
+                    <dd class="col-7">@Model.UpdatedAt.ToString("MMM d, yyyy")</dd>
+                </dl>
+
+                <!-- Reassign (PM/Admin only) -->
+                @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
+                {
+                    <hr />
+                    <h6 class="text-muted text-uppercase small fw-semibold mb-2">Reassign</h6>
+                    <form asp-controller="WorkItems" asp-action="Assign" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.WorkItemId" />
+                        <select name="assignedToId" class="form-select form-select-sm mb-2">
+                            <option value="">— Unassigned —</option>
+                            @foreach (var dev in (IEnumerable<ApplicationUser>)ViewBag.Developers)
+                            {
+                                if (dev.Id == Model.AssignedToId)
+                                { <option value="@dev.Id" selected>@dev.FullName</option> }
+                                else
+                                { <option value="@dev.Id">@dev.FullName</option> }
+                            }
+                        </select>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Update Assignee</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>
