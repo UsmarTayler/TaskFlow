@@ -75,7 +75,7 @@ Three realistic projects with 17 work items across varied types, priorities, and
 
 ```bash
 git clone <your-repo-url>
-cd ProgPoeST10445063
+cd TaskFlow
 
 dotnet restore
 dotnet run --project CMCS.Mvc.csproj
