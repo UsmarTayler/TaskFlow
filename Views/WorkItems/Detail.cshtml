@@ -31,7 +31,23 @@
                     @if (Model.IsOverdue) { <span class="badge bg-danger">Overdue</span> }
                 </div>
 
-                <h4 class="mb-3">@Model.Title</h4>
+                <div class="d-flex align-items-start justify-content-between mb-3">
+                    <h4 class="mb-0">@Model.Title</h4>
+                    @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
+                    {
+                        <div class="d-flex gap-2 ms-3 flex-shrink-0">
+                            <a asp-action="Edit" asp-route-id="@Model.WorkItemId"
+                               class="btn btn-outline-secondary btn-sm">✏ Edit</a>
+                            <form asp-action="Delete" method="post"
+                                  onsubmit="return confirm('Delete this work item? This cannot be undone.')">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id"        value="@Model.WorkItemId" />
+                                <input type="hidden" name="projectId" value="@Model.ProjectId" />
+                                <button type="submit" class="btn btn-outline-danger btn-sm">🗑 Delete</button>
+                            </form>
+                        </div>
+                    }
+                </div>
 
                 @if (!string.IsNullOrEmpty(Model.Description))
                 {
@@ -125,3 +141,41 @@
         </div>
     </div>
 </div>
+
+<!-- ── Change History ──────────────────────────────────────────────────────── -->
+@{
+    var history = ViewBag.History as List<TaskFlow.Models.WorkItemHistory> ?? new List<TaskFlow.Models.WorkItemHistory>();
+}
+@if (history.Any())
+{
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-body">
+            <h6 class="text-muted text-uppercase small fw-semibold mb-3">Change History</h6>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Field</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Changed By</th>
+                            <th>When</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in history)
+                        {
+                            <tr>
+                                <td class="fw-semibold small">@entry.Field</td>
+                                <td class="text-muted small">@(entry.OldValue ?? "—")</td>
+                                <td class="small">@(entry.NewValue ?? "—")</td>
+                                <td class="text-muted small">@(entry.ChangedBy?.FullName ?? "System")</td>
+                                <td class="text-muted small">@entry.ChangedAt.ToString("MMM d, yyyy HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}

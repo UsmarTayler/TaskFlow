@@ -15,14 +15,26 @@
         <a asp-controller="Projects" asp-action="Index" class="text-muted small text-decoration-none">← All Projects</a>
         <h3 class="mt-1 mb-0">@Model.Name</h3>
     </div>
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
         <span class="badge @statusBadge fs-6">@Model.Status</span>
+        <a asp-action="Kanban" asp-route-id="@Model.ProjectId"
+           class="btn btn-outline-primary btn-sm">⬜ Board</a>
         @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
         {
             <a asp-controller="WorkItems" asp-action="Create" asp-route-projectId="@Model.ProjectId"
                class="btn btn-primary btn-sm">+ Add Task</a>
+            <a asp-action="Edit" asp-route-id="@Model.ProjectId"
+               class="btn btn-outline-secondary btn-sm">✏ Edit</a>
             <a asp-controller="WorkItems" asp-action="Export" asp-route-projectId="@Model.ProjectId"
-               class="btn btn-outline-secondary btn-sm">⬇ Export CSV</a>
+               class="btn btn-outline-secondary btn-sm">⬇ CSV</a>
+        }
+        @if (User.IsInRole("Admin"))
+        {
+            <form asp-action="Delete" asp-route-id="@Model.ProjectId" method="post" style="display:inline"
+                  onsubmit="return confirm('Delete this project and ALL its tasks? This cannot be undone.')">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-danger btn-sm">🗑 Delete</button>
+            </form>
         }
     </div>
 </div>
@@ -67,6 +79,10 @@ else
                     <th>Status</th>
                     <th>Assigned To</th>
                     <th>Due</th>
+                    @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
+                    {
+                        <th></th>
+                    }
                 </tr>
             </thead>
             <tbody>
@@ -96,6 +112,20 @@ else
                         <td><span class="badge @sBadge">@sLabel</span></td>
                         <td class="text-muted small">@(w.AssignedTo?.FullName ?? "—")</td>
                         <td class="text-muted small">@(w.DueDate?.ToString("MMM d") ?? "—")</td>
+                        @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
+                        {
+                            <td class="text-end">
+                                <a asp-controller="WorkItems" asp-action="Edit" asp-route-id="@w.WorkItemId"
+                                   class="btn btn-outline-secondary btn-sm py-0">Edit</a>
+                                <form asp-controller="WorkItems" asp-action="Delete" method="post" style="display:inline"
+                                      onsubmit="return confirm('Delete this work item?')">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id"        value="@w.WorkItemId" />
+                                    <input type="hidden" name="projectId" value="@Model.ProjectId" />
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+                                </form>
+                            </td>
+                        }
                     </tr>
                 }
             </tbody>

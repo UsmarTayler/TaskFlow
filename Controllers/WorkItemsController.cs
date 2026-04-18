@@ -51,6 +51,9 @@ namespace TaskFlow.Controllers
                 ViewBag.Developers = devs.OrderBy(d => d.FullName).ToList();
             }
 
+            // Load the full change history to display at the bottom of the detail page
+            ViewBag.History = await _projects.GetWorkItemHistoryAsync(id);
+
             return View(item);
         }
 
@@ -116,11 +119,106 @@ namespace TaskFlow.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateStatus(int id, ItemStatus status, int projectId)
         {
+            // Tell the service who is making this change so the audit log can record it
+            _projects.SetCurrentUser(_userManager.GetUserId(User));
             var ok = await _projects.UpdateWorkItemStatusAsync(id, status);
 
             // Use TempData so the success/error message survives the redirect
             TempData[ok ? "Success" : "Error"] = ok ? "Status updated." : "Item not found.";
             return RedirectToAction(nameof(Detail), new { id });
+        }
+
+        // ── Edit work item ────────────────────────────────────────────────────────
+
+        // GET: pre-populate the full edit form
+        [Authorize(Roles = "Admin,ProjectManager")]
+        [HttpGet]
+        public async Task<IActionResult> Edit(int id)
+        {
+            var item = await _projects.GetWorkItemByIdAsync(id);
+            if (item is null) return NotFound();
+
+            // Populate developer dropdown (same as the Create form)
+            var devs = await _userManager.GetUsersInRoleAsync("Developer");
+            ViewBag.Developers = devs.OrderBy(d => d.FullName).ToList();
+
+            var model = new EditWorkItemViewModel
+            {
+                WorkItemId   = item.WorkItemId,
+                ProjectId    = item.ProjectId,
+                Title        = item.Title,
+                Description  = item.Description,
+                Type         = item.Type,
+                Priority     = item.Priority,
+                Status       = item.Status,
+                DueDate      = item.DueDate,
+                AssignedToId = item.AssignedToId
+            };
+            return View(model);
+        }
+
+        // POST: validate and persist all editable fields
+        [Authorize(Roles = "Admin,ProjectManager")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(EditWorkItemViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                var devs = await _userManager.GetUsersInRoleAsync("Developer");
+                ViewBag.Developers = devs.OrderBy(d => d.FullName).ToList();
+                return View(model);
+            }
+
+            // Set current user so the audit log records who made these changes
+            _projects.SetCurrentUser(_userManager.GetUserId(User));
+
+            var item = new WorkItem
+            {
+                WorkItemId   = model.WorkItemId,
+                ProjectId    = model.ProjectId,
+                Title        = model.Title,
+                Description  = model.Description,
+                Type         = model.Type,
+                Priority     = model.Priority,
+                Status       = model.Status,
+                DueDate      = model.DueDate,
+                AssignedToId = model.AssignedToId
+            };
+
+            var ok = await _projects.UpdateWorkItemAsync(item);
+            if (!ok) return NotFound();
+
+            TempData["Success"] = $"\"{model.Title}\" updated.";
+            return RedirectToAction(nameof(Detail), new { id = model.WorkItemId });
+        }
+
+        // ── Delete work item ──────────────────────────────────────────────────────
+
+        [Authorize(Roles = "Admin,ProjectManager")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id, int projectId)
+        {
+            var ok = await _projects.DeleteWorkItemAsync(id);
+            TempData[ok ? "Success" : "Error"] = ok ? "Work item deleted." : "Item not found.";
+            // Return to the parent project's detail page after deletion
+            return RedirectToAction("Detail", "Projects", new { id = projectId });
+        }
+
+        // ── SetStatus (JSON endpoint for Kanban drag-and-drop) ────────────────────
+
+        /// <summary>
+        /// Lightweight POST used by the Kanban board's JavaScript.
+        /// Returns { "success": true } on success so no full-page reload is needed.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SetStatus(int id, ItemStatus status)
+        {
+            _projects.SetCurrentUser(_userManager.GetUserId(User));
+            var ok = await _projects.UpdateWorkItemStatusAsync(id, status);
+            return Json(new { success = ok });
         }
 
         // ── Assign / reassign ─────────────────────────────────────────────────────
@@ -130,6 +228,8 @@ namespace TaskFlow.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Assign(int id, string? assignedToId)
         {
+            // Record who is making this reassignment in the audit log
+            _projects.SetCurrentUser(_userManager.GetUserId(User));
             // Passing null for assignedToId clears the assignment (task becomes unassigned)
             var ok = await _projects.AssignWorkItemAsync(id, assignedToId);
             TempData[ok ? "Success" : "Error"] = ok ? "Assignee updated." : "Item not found.";

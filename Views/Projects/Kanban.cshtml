@@ -1,0 +1,310 @@
+@model TaskFlow.Models.Project
+@using TaskFlow.Models
+
+@{
+    ViewData["Title"] = Model.Name + " — Board";
+
+    // Partition work items into status columns (evaluated in Razor, not in LINQ-to-SQL)
+    var todo       = Model.WorkItems.Where(w => w.Status == ItemStatus.Todo).OrderByDescending(w => w.Priority).ToList();
+    var inProgress = Model.WorkItems.Where(w => w.Status == ItemStatus.InProgress).OrderByDescending(w => w.Priority).ToList();
+    var inReview   = Model.WorkItems.Where(w => w.Status == ItemStatus.InReview).OrderByDescending(w => w.Priority).ToList();
+    var done       = Model.WorkItems.Where(w => w.Status == ItemStatus.Done).OrderByDescending(w => w.Priority).ToList();
+}
+
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+        <a asp-action="Detail" asp-route-id="@Model.ProjectId"
+           class="text-muted small text-decoration-none">← @Model.Name</a>
+        <h3 class="mt-1 mb-0">Board</h3>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Detail" asp-route-id="@Model.ProjectId"
+           class="btn btn-outline-secondary btn-sm">☰ List View</a>
+        @if (User.IsInRole("Admin") || User.IsInRole("ProjectManager"))
+        {
+            <a asp-controller="WorkItems" asp-action="Create" asp-route-projectId="@Model.ProjectId"
+               class="btn btn-primary btn-sm">+ Add Task</a>
+        }
+    </div>
+</div>
+
+@* Hidden anti-forgery token — read by the Kanban JS to authorise SetStatus AJAX calls *@
+@Html.AntiForgeryToken()
+
+<!-- Toast notification for drag-and-drop feedback -->
+<div id="kanban-toast" class="toast align-items-center text-bg-success border-0 position-fixed bottom-0 end-0 m-3"
+     role="alert" aria-live="assertive" aria-atomic="true" style="z-index:1100">
+    <div class="d-flex">
+        <div class="toast-body" id="kanban-toast-msg">Status updated.</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+</div>
+
+<!-- Kanban columns -->
+<div class="row g-3 kanban-board" id="kanban-board">
+
+    <!-- ── Todo ─────────────────────────────────────────────────── -->
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                <span class="fw-semibold small text-uppercase text-muted">To Do</span>
+                <span class="badge bg-secondary rounded-pill" id="count-Todo">@todo.Count</span>
+            </div>
+            <div class="card-body p-2 kanban-column" data-status="Todo" id="col-Todo">
+                @foreach (var w in todo)
+                {
+                    var pBadge = w.Priority == Priority.Critical ? "bg-danger"
+                               : w.Priority == Priority.High     ? "bg-warning text-dark"
+                               : w.Priority == Priority.Medium   ? "bg-info text-dark"
+                               : "bg-secondary";
+                    <div class="kanban-card card border shadow-sm mb-2 p-2"
+                         draggable="true"
+                         data-id="@w.WorkItemId"
+                         data-status="Todo">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="badge bg-light text-dark border small">@w.Type</span>
+                            <span class="badge @pBadge small">@w.Priority</span>
+                        </div>
+                        <a asp-controller="WorkItems" asp-action="Detail" asp-route-id="@w.WorkItemId"
+                           class="fw-semibold small text-decoration-none text-dark d-block mb-1">@w.Title</a>
+                        @if (w.AssignedTo is not null)
+                        {
+                            <div class="text-muted" style="font-size:0.7rem">@w.AssignedTo.FullName</div>
+                        }
+                        @if (w.DueDate.HasValue)
+                        {
+                            var dueCls = w.IsOverdue ? "text-danger fw-semibold" : "text-muted";
+                            <div class="@dueCls" style="font-size:0.7rem">Due @w.DueDate.Value.ToString("MMM d")</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── In Progress ───────────────────────────────────────────── -->
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center py-2">
+                <span class="fw-semibold small text-uppercase text-primary">In Progress</span>
+                <span class="badge bg-primary rounded-pill" id="count-InProgress">@inProgress.Count</span>
+            </div>
+            <div class="card-body p-2 kanban-column" data-status="InProgress" id="col-InProgress">
+                @foreach (var w in inProgress)
+                {
+                    var pBadge = w.Priority == Priority.Critical ? "bg-danger"
+                               : w.Priority == Priority.High     ? "bg-warning text-dark"
+                               : w.Priority == Priority.Medium   ? "bg-info text-dark"
+                               : "bg-secondary";
+                    <div class="kanban-card card border shadow-sm mb-2 p-2"
+                         draggable="true"
+                         data-id="@w.WorkItemId"
+                         data-status="InProgress">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="badge bg-light text-dark border small">@w.Type</span>
+                            <span class="badge @pBadge small">@w.Priority</span>
+                        </div>
+                        <a asp-controller="WorkItems" asp-action="Detail" asp-route-id="@w.WorkItemId"
+                           class="fw-semibold small text-decoration-none text-dark d-block mb-1">@w.Title</a>
+                        @if (w.AssignedTo is not null)
+                        {
+                            <div class="text-muted" style="font-size:0.7rem">@w.AssignedTo.FullName</div>
+                        }
+                        @if (w.DueDate.HasValue)
+                        {
+                            var dueCls = w.IsOverdue ? "text-danger fw-semibold" : "text-muted";
+                            <div class="@dueCls" style="font-size:0.7rem">Due @w.DueDate.Value.ToString("MMM d")</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── In Review ─────────────────────────────────────────────── -->
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-info bg-opacity-10 d-flex justify-content-between align-items-center py-2">
+                <span class="fw-semibold small text-uppercase text-info">In Review</span>
+                <span class="badge bg-info text-dark rounded-pill" id="count-InReview">@inReview.Count</span>
+            </div>
+            <div class="card-body p-2 kanban-column" data-status="InReview" id="col-InReview">
+                @foreach (var w in inReview)
+                {
+                    var pBadge = w.Priority == Priority.Critical ? "bg-danger"
+                               : w.Priority == Priority.High     ? "bg-warning text-dark"
+                               : w.Priority == Priority.Medium   ? "bg-info text-dark"
+                               : "bg-secondary";
+                    <div class="kanban-card card border shadow-sm mb-2 p-2"
+                         draggable="true"
+                         data-id="@w.WorkItemId"
+                         data-status="InReview">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="badge bg-light text-dark border small">@w.Type</span>
+                            <span class="badge @pBadge small">@w.Priority</span>
+                        </div>
+                        <a asp-controller="WorkItems" asp-action="Detail" asp-route-id="@w.WorkItemId"
+                           class="fw-semibold small text-decoration-none text-dark d-block mb-1">@w.Title</a>
+                        @if (w.AssignedTo is not null)
+                        {
+                            <div class="text-muted" style="font-size:0.7rem">@w.AssignedTo.FullName</div>
+                        }
+                        @if (w.DueDate.HasValue)
+                        {
+                            var dueCls = w.IsOverdue ? "text-danger fw-semibold" : "text-muted";
+                            <div class="@dueCls" style="font-size:0.7rem">Due @w.DueDate.Value.ToString("MMM d")</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Done ──────────────────────────────────────────────────── -->
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-success bg-opacity-10 d-flex justify-content-between align-items-center py-2">
+                <span class="fw-semibold small text-uppercase text-success">Done</span>
+                <span class="badge bg-success rounded-pill" id="count-Done">@done.Count</span>
+            </div>
+            <div class="card-body p-2 kanban-column" data-status="Done" id="col-Done">
+                @foreach (var w in done)
+                {
+                    var pBadge = w.Priority == Priority.Critical ? "bg-danger"
+                               : w.Priority == Priority.High     ? "bg-warning text-dark"
+                               : w.Priority == Priority.Medium   ? "bg-info text-dark"
+                               : "bg-secondary";
+                    <div class="kanban-card card border shadow-sm mb-2 p-2"
+                         draggable="true"
+                         data-id="@w.WorkItemId"
+                         data-status="Done">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="badge bg-light text-dark border small">@w.Type</span>
+                            <span class="badge @pBadge small">@w.Priority</span>
+                        </div>
+                        <a asp-controller="WorkItems" asp-action="Detail" asp-route-id="@w.WorkItemId"
+                           class="fw-semibold small text-decoration-none text-muted text-decoration-line-through d-block mb-1">@w.Title</a>
+                        @if (w.AssignedTo is not null)
+                        {
+                            <div class="text-muted" style="font-size:0.7rem">@w.AssignedTo.FullName</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+</div>
+
+@section Scripts {
+<script>
+// ── Kanban drag-and-drop ────────────────────────────────────────────────────
+// Uses the native HTML5 Drag and Drop API — no external library needed.
+// Cards call /WorkItems/SetStatus (returns JSON) so the page doesn't reload.
+
+const antiForgeryToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value
+    ?? document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? '';
+
+let draggedCard = null;
+
+// ── Drag source events ──────────────────────────────────────────────────────
+document.querySelectorAll('.kanban-card').forEach(card => {
+    card.addEventListener('dragstart', e => {
+        draggedCard = card;
+        card.classList.add('opacity-50');
+        e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+        draggedCard = null;
+        card.classList.remove('opacity-50');
+        document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
+    });
+});
+
+// ── Drop target events ──────────────────────────────────────────────────────
+document.querySelectorAll('.kanban-column').forEach(col => {
+    col.addEventListener('dragover', e => {
+        e.preventDefault();                     // required to allow drop
+        e.dataTransfer.dropEffect = 'move';
+        col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+    col.addEventListener('drop', async e => {
+        e.preventDefault();
+        col.classList.remove('drag-over');
+        if (!draggedCard) return;
+
+        const newStatus  = col.dataset.status;
+        const oldStatus  = draggedCard.dataset.status;
+        const itemId     = draggedCard.dataset.id;
+        if (newStatus === oldStatus) return;    // dropped in the same column — nothing to do
+
+        // Optimistically move the card in the DOM
+        col.appendChild(draggedCard);
+        draggedCard.dataset.status = newStatus;
+
+        // Decrement old column count, increment new column count
+        updateCount(oldStatus, -1);
+        updateCount(newStatus, +1);
+
+        // Strike-through title if moved to Done; remove if moved away
+        const titleLink = draggedCard.querySelector('a');
+        if (newStatus === 'Done') {
+            titleLink?.classList.add('text-muted', 'text-decoration-line-through');
+        } else {
+            titleLink?.classList.remove('text-muted', 'text-decoration-line-through');
+        }
+
+        // Persist the change via the SetStatus JSON endpoint
+        try {
+            const res = await fetch('/WorkItems/SetStatus', {
+                method : 'POST',
+                headers: {
+                    'Content-Type'     : 'application/x-www-form-urlencoded',
+                    'RequestVerificationToken': antiForgeryToken
+                },
+                body: `id=${itemId}&status=${newStatus}`
+            });
+            const data = await res.json();
+            showToast(data.success ? 'Status updated.' : 'Update failed — please refresh.', data.success);
+        } catch {
+            showToast('Network error — please refresh.', false);
+        }
+    });
+});
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function updateCount(status, delta) {
+    const el = document.getElementById('count-' + status);
+    if (el) el.textContent = Math.max(0, parseInt(el.textContent || '0') + delta);
+}
+
+function showToast(message, success) {
+    const toastEl  = document.getElementById('kanban-toast');
+    const toastMsg = document.getElementById('kanban-toast-msg');
+    toastEl.classList.remove('text-bg-success', 'text-bg-danger');
+    toastEl.classList.add(success ? 'text-bg-success' : 'text-bg-danger');
+    toastMsg.textContent = message;
+    const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
+    toast.show();
+}
+</script>
+<style>
+.kanban-column {
+    min-height: 200px;
+    transition: background 0.15s;
+}
+.kanban-column.drag-over {
+    background: rgba(13, 110, 253, 0.07);
+    border-radius: 4px;
+}
+.kanban-card {
+    cursor: grab;
+    transition: box-shadow 0.15s;
+    user-select: none;
+}
+.kanban-card:active { cursor: grabbing; }
+.kanban-card:hover  { box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; }
+</style>
+}

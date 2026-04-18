@@ -10,6 +10,11 @@ namespace TaskFlow.Services
     /// </summary>
     public interface IProjectService
     {
+        // ── Audit ─────────────────────────────────────────────────────────────────
+
+        /// <summary>Sets the current user ID so the audit log can record who made each change.</summary>
+        void SetCurrentUser(string? userId);
+
         // ── Projects ──────────────────────────────────────────────────────────────
 
         /// <summary>Returns all projects including their work items and owner, newest first.</summary>
@@ -49,5 +54,34 @@ namespace TaskFlow.Services
         /// Returns true on success, false if the item does not exist.
         /// </summary>
         Task<bool> AssignWorkItemAsync(int id, string? userId);
+
+        /// <summary>Returns the full change history for a work item, newest entries first.</summary>
+        Task<List<WorkItemHistory>> GetWorkItemHistoryAsync(int workItemId);
+
+        // ── Edit / Delete ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Updates a project's editable fields (Name, Description, Status, DueDate).
+        /// Returns true on success, false if the project does not exist.
+        /// </summary>
+        Task<bool> UpdateProjectAsync(Project project);
+
+        /// <summary>
+        /// Permanently deletes a project and all its work items (cascade).
+        /// Returns true on success, false if the project does not exist.
+        /// </summary>
+        Task<bool> DeleteProjectAsync(int id);
+
+        /// <summary>
+        /// Updates a work item's editable fields (Title, Description, Type, Priority, Status, DueDate, AssignedToId).
+        /// Returns true on success, false if the item does not exist.
+        /// </summary>
+        Task<bool> UpdateWorkItemAsync(WorkItem item);
+
+        /// <summary>
+        /// Permanently deletes a work item and its change history (cascade).
+        /// Returns true on success, false if the item does not exist.
+        /// </summary>
+        Task<bool> DeleteWorkItemAsync(int id);
     }
 }

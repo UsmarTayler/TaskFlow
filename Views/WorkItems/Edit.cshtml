@@ -1,0 +1,78 @@
+@model TaskFlow.ViewModels.EditWorkItemViewModel
+@using TaskFlow.Models
+
+@{
+    ViewData["Title"] = "Edit Work Item";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <a asp-controller="WorkItems" asp-action="Detail" asp-route-id="@Model.WorkItemId"
+           class="text-muted small text-decoration-none">← Back to Work Item</a>
+        <h3 class="mt-2 mb-4">Edit Work Item</h3>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="WorkItemId" />
+                    <input type="hidden" asp-for="ProjectId" />
+                    <div asp-validation-summary="All" class="alert alert-danger" style="display:none"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="Title" class="form-label fw-semibold"></label>
+                        <input asp-for="Title" class="form-control" />
+                        <span asp-validation-for="Title" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Description" class="form-label fw-semibold"></label>
+                        <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="Type" class="form-label fw-semibold"></label>
+                            <select asp-for="Type" asp-items="Html.GetEnumSelectList<ItemType>()" class="form-select"></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Priority" class="form-label fw-semibold"></label>
+                            <select asp-for="Priority" asp-items="Html.GetEnumSelectList<Priority>()" class="form-select"></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Status" class="form-label fw-semibold"></label>
+                            <select asp-for="Status" asp-items="Html.GetEnumSelectList<ItemStatus>()" class="form-select"></select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="DueDate" class="form-label fw-semibold"></label>
+                            <input asp-for="DueDate" type="date" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="AssignedToId" class="form-label fw-semibold"></label>
+                            <select asp-for="AssignedToId" class="form-select">
+                                <option value="">— Unassigned —</option>
+                                @foreach (var dev in (IEnumerable<TaskFlow.Models.ApplicationUser>)ViewBag.Developers)
+                                {
+                                    <option value="@dev.Id">@dev.FullName</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end mt-3">
+                        <a asp-action="Detail" asp-route-id="@Model.WorkItemId"
+                           class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

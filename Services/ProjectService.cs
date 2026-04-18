@@ -17,6 +17,11 @@ namespace TaskFlow.Services
 
         public ProjectService(AppDbContext context) => _context = context;
 
+        // ── Audit ─────────────────────────────────────────────────────────────────
+
+        // Passes the logged-in user's ID to the DbContext so SaveChanges can record who made each change
+        public void SetCurrentUser(string? userId) => _context.CurrentUserId = userId;
+
         // ── Projects ──────────────────────────────────────────────────────────────
 
         public async Task<List<Project>> GetAllProjectsAsync()
@@ -120,6 +125,75 @@ namespace TaskFlow.Services
             // userId can be null to clear the assignment (unassign the task)
             item.AssignedToId = userId;
             item.UpdatedAt    = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<List<WorkItemHistory>> GetWorkItemHistoryAsync(int workItemId)
+        {
+            // Load the ChangedBy user so we can display their name in the history table
+            return await _context.WorkItemHistories
+                .Include(h => h.ChangedBy)
+                .Where(h => h.WorkItemId == workItemId)
+                .OrderByDescending(h => h.ChangedAt)
+                .ToListAsync();
+        }
+
+        // ── Edit / Delete ─────────────────────────────────────────────────────────
+
+        public async Task<bool> UpdateProjectAsync(Project project)
+        {
+            // FindAsync uses the change tracker before hitting the DB — efficient for single-row updates
+            var existing = await _context.Projects.FindAsync(project.ProjectId);
+            if (existing is null) return false;
+
+            // Only copy the fields the user is allowed to edit; ignore system fields like CreatedAt
+            existing.Name        = project.Name;
+            existing.Description = project.Description;
+            existing.Status      = project.Status;
+            existing.DueDate     = project.DueDate;
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> DeleteProjectAsync(int id)
+        {
+            var project = await _context.Projects.FindAsync(id);
+            if (project is null) return false;
+
+            // EF Core cascade delete removes all child WorkItems and their WorkItemHistory rows
+            _context.Projects.Remove(project);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> UpdateWorkItemAsync(WorkItem item)
+        {
+            var existing = await _context.WorkItems.FindAsync(item.WorkItemId);
+            if (existing is null) return false;
+
+            // Overwrite all user-editable fields; audit log is captured by SaveChangesAsync override
+            existing.Title        = item.Title;
+            existing.Description  = item.Description;
+            existing.Type         = item.Type;
+            existing.Priority     = item.Priority;
+            existing.Status       = item.Status;
+            existing.DueDate      = item.DueDate;
+            existing.AssignedToId = item.AssignedToId;
+            existing.UpdatedAt    = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> DeleteWorkItemAsync(int id)
+        {
+            var item = await _context.WorkItems.FindAsync(id);
+            if (item is null) return false;
+
+            // Cascade delete removes the item's WorkItemHistory rows automatically
+            _context.WorkItems.Remove(item);
             await _context.SaveChangesAsync();
             return true;
         }

@@ -97,5 +97,80 @@ namespace TaskFlow.Controllers
             // Redirect to the new project's detail page after a successful save
             return RedirectToAction(nameof(Detail), new { id = project.ProjectId });
         }
+
+        // ── Edit project ──────────────────────────────────────────────────────────
+
+        // GET: pre-populate the edit form with existing values
+        [Authorize(Roles = "Admin,ProjectManager")]
+        [HttpGet]
+        public async Task<IActionResult> Edit(int id)
+        {
+            var project = await _projects.GetProjectByIdAsync(id);
+            if (project is null) return NotFound();
+
+            var model = new EditProjectViewModel
+            {
+                ProjectId   = project.ProjectId,
+                Name        = project.Name,
+                Description = project.Description,
+                Status      = project.Status,
+                DueDate     = project.DueDate
+            };
+            return View(model);
+        }
+
+        // POST: validate changes and persist them
+        [Authorize(Roles = "Admin,ProjectManager")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(EditProjectViewModel model)
+        {
+            if (!ModelState.IsValid) return View(model);
+
+            var project = new Project
+            {
+                ProjectId   = model.ProjectId,
+                Name        = model.Name,
+                Description = model.Description,
+                Status      = model.Status,
+                DueDate     = model.DueDate
+            };
+
+            var ok = await _projects.UpdateProjectAsync(project);
+            if (!ok) return NotFound();
+
+            TempData["Success"] = $"Project \"{model.Name}\" updated.";
+            return RedirectToAction(nameof(Detail), new { id = model.ProjectId });
+        }
+
+        // ── Delete project ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Permanently deletes a project and all its work items.
+        /// Restricted to Admins only — PMs can edit but not delete.
+        /// The confirmation prompt lives in the UI (no separate GET step needed).
+        /// </summary>
+        [Authorize(Roles = "Admin")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var ok = await _projects.DeleteProjectAsync(id);
+            TempData[ok ? "Success" : "Error"] = ok ? "Project deleted." : "Project not found.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // ── Kanban board ──────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Shows the Kanban board view for a specific project.
+        /// Work items are grouped into status columns; drag-and-drop updates status via fetch.
+        /// </summary>
+        public async Task<IActionResult> Kanban(int id)
+        {
+            var project = await _projects.GetProjectByIdAsync(id);
+            if (project is null) return NotFound();
+            return View(project);
+        }
     }
 }

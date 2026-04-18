@@ -51,7 +51,7 @@ namespace TaskFlow.Controllers
                 model.Email, model.Password, model.RememberMe, lockoutOnFailure: false);
 
             if (result.Succeeded)
-                return RedirectToLocal(returnUrl);
+                return await RedirectToLocal(returnUrl);
 
             // Add a generic error (avoids revealing whether the email or password was wrong)
             ModelState.AddModelError(string.Empty, "Invalid email or password.");
@@ -86,7 +86,8 @@ namespace TaskFlow.Controllers
                 // an Admin can promote them via the User Management page
                 await _userManager.AddToRoleAsync(user, "Developer");
                 await _signInManager.SignInAsync(user, isPersistent: false);
-                return RedirectToAction("Index", "Dashboard");
+                // New developers go straight to My Tasks — not the org-wide dashboard
+                return RedirectToAction("MyTasks", "WorkItems");
             }
 
             // Surface Identity validation errors (e.g. "Password too short") to the user
@@ -191,12 +192,19 @@ namespace TaskFlow.Controllers
 
         /// <summary>
         /// Redirects to <paramref name="returnUrl"/> if it is local to prevent open-redirect attacks,
-        /// otherwise falls back to the dashboard.
+        /// otherwise routes the user to the right landing page based on their role:
+        /// Developers go straight to My Tasks; Admins and PMs go to the Dashboard.
         /// </summary>
-        private IActionResult RedirectToLocal(string? returnUrl)
+        private async Task<IActionResult> RedirectToLocal(string? returnUrl)
         {
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                 return Redirect(returnUrl);
+
+            // Send developers straight to their own task list — they don't need the org-wide dashboard
+            var user = await _userManager.GetUserAsync(User);
+            if (user != null && await _userManager.IsInRoleAsync(user, "Developer"))
+                return RedirectToAction("MyTasks", "WorkItems");
+
             return RedirectToAction("Index", "Dashboard");
         }
     }

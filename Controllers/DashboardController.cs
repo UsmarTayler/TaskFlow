@@ -27,6 +27,11 @@ namespace TaskFlow.Controllers
 
         public async Task<IActionResult> Index()
         {
+            // Developers don't need the org-wide dashboard — redirect them to their own task list
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser != null && await _userManager.IsInRoleAsync(currentUser, "Developer"))
+                return RedirectToAction("MyTasks", "WorkItems");
+
             // Fetch all data up front — the service handles includes so navigation properties
             // are populated and we can do LINQ on them in memory without extra DB round-trips
             var allProjects = await _projects.GetAllProjectsAsync();
