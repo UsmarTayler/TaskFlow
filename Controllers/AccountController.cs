@@ -182,6 +182,68 @@ namespace TaskFlow.Controllers
             return RedirectToAction(nameof(Profile));
         }
 
+        // ── Forgot Password ───────────────────────────────────────────────────────
+
+        [HttpGet]
+        public IActionResult ForgotPassword() => View();
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
+        {
+            if (!ModelState.IsValid) return View(model);
+
+            var user = await _userManager.FindByEmailAsync(model.Email);
+
+            // Always show the confirmation view — never reveal whether an email exists
+            if (user == null)
+                return View("ForgotPasswordConfirmation", (string?)null);
+
+            // Generate a password reset token using ASP.NET Core Identity's token provider
+            var token     = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var resetLink = Url.Action(
+                "ResetPassword", "Account",
+                new { token, email = user.Email },
+                Request.Scheme)!;
+
+            // In production this link would be emailed. For this demo we display it directly.
+            return View("ForgotPasswordConfirmation", resetLink);
+        }
+
+        // ── Reset Password ────────────────────────────────────────────────────────
+
+        [HttpGet]
+        public IActionResult ResetPassword(string? token, string? email)
+        {
+            if (token == null || email == null)
+                return RedirectToAction("ForgotPassword");
+
+            return View(new ResetPasswordViewModel { Token = token, Email = email });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+        {
+            if (!ModelState.IsValid) return View(model);
+
+            var user = await _userManager.FindByEmailAsync(model.Email);
+
+            // If user not found, redirect to confirmation anyway (don't reveal existence)
+            if (user == null)
+                return View("ResetPasswordConfirmation");
+
+            var result = await _userManager.ResetPasswordAsync(user, model.Token, model.NewPassword);
+
+            if (result.Succeeded)
+                return View("ResetPasswordConfirmation");
+
+            foreach (var error in result.Errors)
+                ModelState.AddModelError(string.Empty, error.Description);
+
+            return View(model);
+        }
+
         // ── Access Denied ─────────────────────────────────────────────────────────
 
         // Shown when a user is authenticated but tries to access a route their role can't reach
