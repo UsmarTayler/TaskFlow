@@ -29,6 +29,18 @@
                         <span asp-validation-for="DueDate" class="text-danger small"></span>
                     </div>
 
+                    <div class="mb-3">
+                        <label asp-for="OrganisationId" class="form-label fw-semibold"></label>
+                        <select asp-for="OrganisationId" class="form-select">
+                            <option value="">— Personal (only you) —</option>
+                            @foreach (var org in (IEnumerable<TaskFlow.Models.Organisation>)ViewBag.Organisations)
+                            {
+                                <option value="@org.OrganisationId">@org.Name</option>
+                            }
+                        </select>
+                        <div class="form-text">Personal projects are only visible to you. Organisation projects are visible to all members.</div>
+                    </div>
+
                     <div class="d-flex gap-2 justify-content-end mt-3">
                         <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
                         <button type="submit" class="btn btn-primary">Create Project</button>

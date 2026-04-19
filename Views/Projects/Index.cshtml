@@ -63,6 +63,13 @@ else
                             <span class="badge @statusBadge ms-2 flex-shrink-0">@p.Status</span>
                         </div>
 
+                        @if (p.Organisation != null)
+                        {
+                            <div class="mb-1">
+                                <span class="badge bg-light text-dark border small">🏢 @p.Organisation.Name</span>
+                            </div>
+                        }
+
                         <p class="text-muted small flex-grow-1 mb-3">
                             @(p.Description?.Length > 110 ? p.Description[..110] + "…" : p.Description)
                         </p>

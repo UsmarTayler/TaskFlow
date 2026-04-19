@@ -30,6 +30,7 @@ namespace TaskFlow.Services
             return await _context.Projects
                 .Include(p => p.WorkItems)
                 .Include(p => p.Owner)
+                .Include(p => p.Organisation)
                 .OrderByDescending(p => p.CreatedAt)  // newest projects appear first
                 .ToListAsync();
         }
@@ -196,6 +197,63 @@ namespace TaskFlow.Services
             _context.WorkItems.Remove(item);
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        // ── Scoped queries (multi-tenancy) ────────────────────────────────────────
+
+        public async Task<List<Project>> GetProjectsForUserAsync(string userId)
+        {
+            // Collect the IDs of every organisation this user belongs to
+            var orgIds = await _context.OrganisationMembers
+                .Where(m => m.UserId == userId)
+                .Select(m => m.OrganisationId)
+                .ToListAsync();
+
+            return await _context.Projects
+                .Include(p => p.WorkItems)
+                .Include(p => p.Owner)
+                .Include(p => p.Organisation)
+                .Where(p =>
+                    // Personal project: no org, owned by this user
+                    (p.OrganisationId == null && p.OwnerId == userId) ||
+                    // Org project: belongs to an org the user is a member of
+                    (p.OrganisationId.HasValue && orgIds.Contains(p.OrganisationId.Value))
+                )
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+        }
+
+        // ── Comments ──────────────────────────────────────────────────────────────
+
+        public async Task<List<WorkItemComment>> GetCommentsAsync(int workItemId)
+        {
+            // Oldest first — chronological order feels natural for a discussion thread
+            return await _context.WorkItemComments
+                .Include(c => c.Author)
+                .Where(c => c.WorkItemId == workItemId)
+                .OrderBy(c => c.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<WorkItemComment?> GetCommentByIdAsync(int id)
+        {
+            return await _context.WorkItemComments.FindAsync(id);
+        }
+
+        public async Task AddCommentAsync(WorkItemComment comment)
+        {
+            comment.CreatedAt = DateTime.UtcNow;
+            _context.WorkItemComments.Add(comment);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task DeleteCommentAsync(int id)
+        {
+            var comment = await _context.WorkItemComments.FindAsync(id);
+            if (comment is null) return;
+
+            _context.WorkItemComments.Remove(comment);
+            await _context.SaveChangesAsync();
         }
     }
 }

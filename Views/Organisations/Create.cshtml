@@ -1,0 +1,46 @@
+@model TaskFlow.ViewModels.CreateOrganisationViewModel
+
+@{
+    ViewData["Title"] = "New Organisation";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <a asp-action="Index" class="text-muted small text-decoration-none">← Organisations</a>
+        <h3 class="mt-2 mb-4">Create Organisation</h3>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="All" class="alert alert-danger" style="display:none"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label fw-semibold"></label>
+                        <input asp-for="Name" class="form-control" placeholder="e.g. Acme Software" />
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Description" class="form-label fw-semibold"></label>
+                        <textarea asp-for="Description" class="form-control" rows="3"
+                                  placeholder="What does this organisation do?"></textarea>
+                    </div>
+
+                    <div class="alert alert-info small mb-3">
+                        An invite code will be generated automatically. Share it with teammates so they can join.
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create Organisation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

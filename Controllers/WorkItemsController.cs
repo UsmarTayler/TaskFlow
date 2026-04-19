@@ -51,8 +51,9 @@ namespace TaskFlow.Controllers
                 ViewBag.Developers = devs.OrderBy(d => d.FullName).ToList();
             }
 
-            // Load the full change history to display at the bottom of the detail page
-            ViewBag.History = await _projects.GetWorkItemHistoryAsync(id);
+            // Load comments and change history for the detail page
+            ViewBag.Comments = await _projects.GetCommentsAsync(id);
+            ViewBag.History  = await _projects.GetWorkItemHistoryAsync(id);
 
             return View(item);
         }
@@ -204,6 +205,57 @@ namespace TaskFlow.Controllers
             TempData[ok ? "Success" : "Error"] = ok ? "Work item deleted." : "Item not found.";
             // Return to the parent project's detail page after deletion
             return RedirectToAction("Detail", "Projects", new { id = projectId });
+        }
+
+        // ── Comments ─────────────────────────────────────────────────────────────
+
+        /// <summary>Any authenticated user can add a comment to a work item.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddComment(int workItemId, string body)
+        {
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                TempData["Error"] = "Comment cannot be empty.";
+                return RedirectToAction(nameof(Detail), new { id = workItemId });
+            }
+
+            var comment = new WorkItemComment
+            {
+                WorkItemId = workItemId,
+                Body       = body.Trim(),
+                AuthorId   = _userManager.GetUserId(User)
+            };
+
+            await _projects.AddCommentAsync(comment);
+            return RedirectToAction(nameof(Detail), new { id = workItemId });
+        }
+
+        /// <summary>
+        /// Deletes a comment. Authors can delete their own; Admins and PMs can delete any.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteComment(int commentId, int workItemId)
+        {
+            var comment = await _projects.GetCommentByIdAsync(commentId);
+            if (comment is null)
+                return RedirectToAction(nameof(Detail), new { id = workItemId });
+
+            var userId = _userManager.GetUserId(User)!;
+            var canDelete = comment.AuthorId == userId
+                         || User.IsInRole("Admin")
+                         || User.IsInRole("ProjectManager");
+
+            if (!canDelete)
+            {
+                TempData["Error"] = "You can only delete your own comments.";
+                return RedirectToAction(nameof(Detail), new { id = workItemId });
+            }
+
+            await _projects.DeleteCommentAsync(commentId);
+            TempData["Success"] = "Comment deleted.";
+            return RedirectToAction(nameof(Detail), new { id = workItemId });
         }
 
         // ── SetStatus (JSON endpoint for Kanban drag-and-drop) ────────────────────

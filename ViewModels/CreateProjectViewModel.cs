@@ -22,5 +22,10 @@ namespace TaskFlow.ViewModels
         [Display(Name = "Due Date")]
         [DataType(DataType.Date)]
         public DateTime? DueDate { get; set; }
+
+        // Null = personal project (visible only to creator).
+        // Set = org project (visible to all members of the selected organisation).
+        [Display(Name = "Organisation")]
+        public int? OrganisationId { get; set; }
     }
 }

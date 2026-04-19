@@ -8,18 +8,23 @@ using Microsoft.AspNetCore.Mvc;
 namespace TaskFlow.Controllers
 {
     /// <summary>
-    /// Handles project listing, detail view, and project creation.
-    /// All actions require authentication; only Admins and ProjectManagers can create projects.
+    /// Handles project listing, detail view, creation, editing, and deletion.
+    /// Non-admin users only see projects in their organisations or personal projects they own.
     /// </summary>
     [Authorize]
     public class ProjectsController : Controller
     {
         private readonly IProjectService _projects;
+        private readonly IOrganisationService _orgs;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public ProjectsController(IProjectService projects, UserManager<ApplicationUser> userManager)
+        public ProjectsController(
+            IProjectService projects,
+            IOrganisationService orgs,
+            UserManager<ApplicationUser> userManager)
         {
             _projects    = projects;
+            _orgs        = orgs;
             _userManager = userManager;
         }
 
@@ -33,7 +38,12 @@ namespace TaskFlow.Controllers
         /// </summary>
         public async Task<IActionResult> Index(string? q, string? status)
         {
-            var list = await _projects.GetAllProjectsAsync();
+            var userId = _userManager.GetUserId(User)!;
+
+            // Admins see every project; everyone else is scoped to their orgs + personal projects
+            var list = User.IsInRole("Admin")
+                ? await _projects.GetAllProjectsAsync()
+                : await _projects.GetProjectsForUserAsync(userId);
 
             // Text search — filters in memory after the DB query (acceptable at demo scale)
             if (!string.IsNullOrWhiteSpace(q))
@@ -69,26 +79,40 @@ namespace TaskFlow.Controllers
 
         // ── Create project ────────────────────────────────────────────────────────
 
-        // GET: show the empty create form
+        // GET: show the empty create form with org dropdown pre-populated
         [Authorize(Roles = "Admin,ProjectManager")]
         [HttpGet]
-        public IActionResult Create() => View(new CreateProjectViewModel());
+        public async Task<IActionResult> Create()
+        {
+            var userId = _userManager.GetUserId(User)!;
+            ViewBag.Organisations = User.IsInRole("Admin")
+                ? await _orgs.GetAllOrganisationsAsync()
+                : await _orgs.GetOrganisationsForUserAsync(userId);
+            return View(new CreateProjectViewModel());
+        }
 
         // POST: validate and persist the new project
         [Authorize(Roles = "Admin,ProjectManager")]
         [HttpPost]
-        [ValidateAntiForgeryToken]  // prevents cross-site request forgery on form submissions
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateProjectViewModel model)
         {
-            // If validation attributes on the ViewModel failed, redisplay the form with errors
-            if (!ModelState.IsValid) return View(model);
+            if (!ModelState.IsValid)
+            {
+                var uid = _userManager.GetUserId(User)!;
+                ViewBag.Organisations = User.IsInRole("Admin")
+                    ? await _orgs.GetAllOrganisationsAsync()
+                    : await _orgs.GetOrganisationsForUserAsync(uid);
+                return View(model);
+            }
 
             var project = new Project
             {
-                Name        = model.Name,
-                Description = model.Description,
-                DueDate     = model.DueDate,
-                OwnerId     = _userManager.GetUserId(User)  // set the logged-in user as owner
+                Name           = model.Name,
+                Description    = model.Description,
+                DueDate        = model.DueDate,
+                OrganisationId = model.OrganisationId,   // null = personal project
+                OwnerId        = _userManager.GetUserId(User)
             };
 
             await _projects.CreateProjectAsync(project);

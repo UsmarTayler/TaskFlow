@@ -18,9 +18,12 @@ namespace TaskFlow.Data
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         // DbSet properties — each one maps to a table in the database
-        public DbSet<Project>         Projects         { get; set; }
-        public DbSet<WorkItem>        WorkItems        { get; set; }
-        public DbSet<WorkItemHistory> WorkItemHistories { get; set; }
+        public DbSet<Project>            Projects            { get; set; }
+        public DbSet<WorkItem>           WorkItems           { get; set; }
+        public DbSet<WorkItemHistory>    WorkItemHistories   { get; set; }
+        public DbSet<WorkItemComment>    WorkItemComments    { get; set; }
+        public DbSet<Organisation>       Organisations       { get; set; }
+        public DbSet<OrganisationMember> OrganisationMembers { get; set; }
 
         // The current user's ID — set by controllers before calling SaveChangesAsync
         // so the audit log knows who made each change
@@ -86,51 +89,99 @@ namespace TaskFlow.Data
             // Let Identity set up its own tables first
             base.OnModelCreating(builder);
 
-            // Project → Owner (many projects can have the same owner)
-            // SetNull means: if the owner user is deleted, OwnerId becomes NULL
-            // instead of the project being deleted too
+            // Project → Owner
             builder.Entity<Project>()
                 .HasOne(p => p.Owner)
                 .WithMany()
                 .HasForeignKey(p => p.OwnerId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // WorkItem → Project (one project contains many work items)
-            // Cascade means: deleting a project automatically deletes all its tasks
+            // Project → Organisation (SetNull — project becomes personal if org is deleted)
+            builder.Entity<Project>()
+                .HasOne(p => p.Organisation)
+                .WithMany(o => o.Projects)
+                .HasForeignKey(p => p.OrganisationId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // WorkItem → Project (cascade — deleting a project removes all its tasks)
             builder.Entity<WorkItem>()
                 .HasOne(w => w.Project)
                 .WithMany(p => p.WorkItems)
                 .HasForeignKey(w => w.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // WorkItem → AssignedTo (nullable FK — item survives if the assigned dev is deleted)
+            // WorkItem → AssignedTo
             builder.Entity<WorkItem>()
                 .HasOne(w => w.AssignedTo)
                 .WithMany()
                 .HasForeignKey(w => w.AssignedToId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // WorkItem → CreatedBy (nullable FK — item survives if the creator is deleted)
-            // SetNull also avoids EF Core's "multiple cascade paths" error in SQL Server
+            // WorkItem → CreatedBy
             builder.Entity<WorkItem>()
                 .HasOne(w => w.CreatedBy)
                 .WithMany()
                 .HasForeignKey(w => w.CreatedById)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // WorkItemHistory → WorkItem (cascade — deleting a task removes its history too)
+            // WorkItemHistory → WorkItem (cascade)
             builder.Entity<WorkItemHistory>()
                 .HasOne(h => h.WorkItem)
                 .WithMany()
                 .HasForeignKey(h => h.WorkItemId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // WorkItemHistory → ChangedBy (SetNull — keep history if user is deleted)
+            // WorkItemHistory → ChangedBy
             builder.Entity<WorkItemHistory>()
                 .HasOne(h => h.ChangedBy)
                 .WithMany()
                 .HasForeignKey(h => h.ChangedById)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // WorkItemComment → WorkItem (cascade — comments deleted with the task)
+            builder.Entity<WorkItemComment>()
+                .HasOne(c => c.WorkItem)
+                .WithMany()
+                .HasForeignKey(c => c.WorkItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // WorkItemComment → Author (SetNull — keep comment if author's account is deleted)
+            builder.Entity<WorkItemComment>()
+                .HasOne(c => c.Author)
+                .WithMany()
+                .HasForeignKey(c => c.AuthorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Organisation → Owner
+            builder.Entity<Organisation>()
+                .HasOne(o => o.Owner)
+                .WithMany()
+                .HasForeignKey(o => o.OwnerId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Ensure invite codes are unique across all organisations
+            builder.Entity<Organisation>()
+                .HasIndex(o => o.InviteCode)
+                .IsUnique();
+
+            // OrganisationMember → Organisation (cascade — memberships removed when org deleted)
+            builder.Entity<OrganisationMember>()
+                .HasOne(m => m.Organisation)
+                .WithMany(o => o.Members)
+                .HasForeignKey(m => m.OrganisationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // OrganisationMember → User (cascade — memberships removed when user account deleted)
+            builder.Entity<OrganisationMember>()
+                .HasOne(m => m.User)
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Prevent a user from being added to the same org twice
+            builder.Entity<OrganisationMember>()
+                .HasIndex(m => new { m.OrganisationId, m.UserId })
+                .IsUnique();
         }
     }
 }

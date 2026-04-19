@@ -58,6 +58,29 @@ namespace TaskFlow.Services
         /// <summary>Returns the full change history for a work item, newest entries first.</summary>
         Task<List<WorkItemHistory>> GetWorkItemHistoryAsync(int workItemId);
 
+        // ── Scoped queries (multi-tenancy) ────────────────────────────────────────
+
+        /// <summary>
+        /// Returns all projects visible to a specific user:
+        /// personal projects they own (no org) plus all projects in organisations they belong to.
+        /// Use <see cref="GetAllProjectsAsync"/> for admin views that need everything.
+        /// </summary>
+        Task<List<Project>> GetProjectsForUserAsync(string userId);
+
+        // ── Comments ──────────────────────────────────────────────────────────────
+
+        /// <summary>Returns all comments on a work item, oldest first.</summary>
+        Task<List<WorkItemComment>> GetCommentsAsync(int workItemId);
+
+        /// <summary>Returns a single comment by ID, or null if not found.</summary>
+        Task<WorkItemComment?> GetCommentByIdAsync(int id);
+
+        /// <summary>Persists a new comment.</summary>
+        Task AddCommentAsync(WorkItemComment comment);
+
+        /// <summary>Deletes a comment. Does not check ownership — callers must authorise first.</summary>
+        Task DeleteCommentAsync(int id);
+
         // ── Edit / Delete ─────────────────────────────────────────────────────────
 
         /// <summary>

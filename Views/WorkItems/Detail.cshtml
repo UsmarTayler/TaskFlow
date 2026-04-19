@@ -142,6 +142,66 @@
     </div>
 </div>
 
+<!-- ── Comments ────────────────────────────────────────────────────────────── -->
+@{
+    var comments    = ViewBag.Comments as List<TaskFlow.Models.WorkItemComment> ?? new List<TaskFlow.Models.WorkItemComment>();
+    var currentUser = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+}
+<div class="card border-0 shadow-sm mt-4">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small fw-semibold mb-3">
+            Comments <span class="badge bg-secondary">@comments.Count</span>
+        </h6>
+
+        @if (comments.Any())
+        {
+            @foreach (var c in comments)
+            {
+                var canDelete = c.AuthorId == currentUser || User.IsInRole("Admin") || User.IsInRole("ProjectManager");
+                <div class="d-flex gap-3 mb-3">
+                    <div class="avatar-circle flex-shrink-0" style="width:36px;height:36px;font-size:0.85rem">
+                        @(c.Author?.FullName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-baseline gap-2 mb-1">
+                            <span class="fw-semibold small">@(c.Author?.FullName ?? "Deleted user")</span>
+                            <span class="text-muted" style="font-size:0.75rem">@c.CreatedAt.ToString("MMM d, yyyy HH:mm")</span>
+                            @if (canDelete)
+                            {
+                                <form asp-action="DeleteComment" method="post" style="display:inline;margin-left:auto"
+                                      onsubmit="return confirm('Delete this comment?')">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="commentId"  value="@c.WorkItemCommentId" />
+                                    <input type="hidden" name="workItemId" value="@Model.WorkItemId" />
+                                    <button type="submit" class="btn btn-link btn-sm text-danger p-0">Delete</button>
+                                </form>
+                            }
+                        </div>
+                        <div class="bg-light rounded p-2 small">@c.Body</div>
+                    </div>
+                </div>
+            }
+            <hr />
+        }
+
+        <!-- Add comment form -->
+        <form asp-action="AddComment" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="workItemId" value="@Model.WorkItemId" />
+            <div class="d-flex gap-3">
+                <div class="avatar-circle flex-shrink-0" style="width:36px;height:36px;font-size:0.85rem">
+                    @(User.Identity?.Name?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                </div>
+                <div class="flex-grow-1">
+                    <textarea name="body" class="form-control form-control-sm mb-2"
+                              rows="2" placeholder="Leave a comment…"></textarea>
+                    <button type="submit" class="btn btn-primary btn-sm">Comment</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- ── Change History ──────────────────────────────────────────────────────── -->
 @{
     var history = ViewBag.History as List<TaskFlow.Models.WorkItemHistory> ?? new List<TaskFlow.Models.WorkItemHistory>();

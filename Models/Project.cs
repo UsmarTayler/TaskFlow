@@ -33,6 +33,12 @@ namespace TaskFlow.Models
         public string? OwnerId { get; set; }
         public ApplicationUser? Owner { get; set; }
 
+        // FK → Organisation — null means this is a personal project visible only to the owner.
+        // When set, all members of that organisation can see the project.
+        // SetNull on org delete so the project is demoted to personal rather than deleted.
+        public int? OrganisationId { get; set; }
+        public Organisation? Organisation { get; set; }
+
         // Navigation property — EF Core loads work items via Include() in queries
         public List<WorkItem> WorkItems { get; set; } = new();
 

@@ -1,0 +1,158 @@
+@model TaskFlow.Models.Organisation
+@using System.Security.Claims
+
+@{
+    ViewData["Title"] = Model.Name;
+    var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    var isOwnerOrAdmin = Model.OwnerId == currentUserId || User.IsInRole("Admin");
+}
+
+<a asp-action="Index" class="text-muted small text-decoration-none">← Organisations</a>
+
+<div class="d-flex align-items-start justify-content-between mt-2 mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="mb-0">@Model.Name</h3>
+        @if (!string.IsNullOrEmpty(Model.Description))
+        {
+            <p class="text-muted mt-1 mb-0">@Model.Description</p>
+        }
+        <small class="text-muted">Created @Model.CreatedAt.ToString("MMM d, yyyy") by @(Model.Owner?.FullName ?? "—")</small>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <!-- ── Invite Code ──────────────────────────────────────────────────────── -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-semibold mb-3">Invite Code</h6>
+                <p class="text-muted small mb-2">
+                    Share this code with anyone you want to invite. They enter it on the
+                    <a asp-action="Join">Join Organisation</a> page.
+                </p>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fs-4 fw-bold font-monospace text-primary" id="invite-code">@Model.InviteCode</span>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="copyCode()" title="Copy code">
+                        📋
+                    </button>
+                </div>
+                <div id="copy-toast" class="text-success small mt-1" style="display:none">Copied!</div>
+            </div>
+        </div>
+
+        <!-- ── Projects ──────────────────────────────────────────────────────── -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-semibold mb-3">
+                    Projects <span class="badge bg-secondary">@Model.Projects.Count</span>
+                </h6>
+                @if (!Model.Projects.Any())
+                {
+                    <p class="text-muted small fst-italic">No projects yet.</p>
+                }
+                else
+                {
+                    @foreach (var p in Model.Projects.OrderByDescending(p => p.CreatedAt))
+                    {
+                        var pct = p.TotalItems == 0 ? 0 : (int)Math.Round(p.DoneItems * 100.0 / p.TotalItems);
+                        <div class="mb-3">
+                            <a asp-controller="Projects" asp-action="Detail" asp-route-id="@p.ProjectId"
+                               class="fw-semibold text-decoration-none text-dark small">@p.Name</a>
+                            <div class="progress mt-1" style="height:4px">
+                                <div class="progress-bar bg-success" style="width:@pct%"></div>
+                            </div>
+                            <div class="text-muted" style="font-size:0.7rem">@p.DoneItems / @p.TotalItems tasks done</div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Members ──────────────────────────────────────────────────────────── -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-semibold mb-3">
+                    Members <span class="badge bg-secondary">@Model.Members.Count</span>
+                </h6>
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Joined</th>
+                            @if (isOwnerOrAdmin) { <th></th> }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in Model.Members.OrderBy(m => m.User?.FullName))
+                        {
+                            var isThisOwner = m.UserId == Model.OwnerId;
+                            <tr>
+                                <td class="fw-semibold small">
+                                    @(m.User?.FullName ?? "—")
+                                    @if (isThisOwner)
+                                    {
+                                        <span class="badge bg-warning text-dark ms-1">Owner</span>
+                                    }
+                                </td>
+                                <td class="text-muted small">@(m.User?.Email ?? "—")</td>
+                                <td class="text-muted small">@m.JoinedAt.ToString("MMM d, yyyy")</td>
+                                @if (isOwnerOrAdmin)
+                                {
+                                    <td class="text-end">
+                                        @if (!isThisOwner)
+                                        {
+                                            <form asp-action="RemoveMember" method="post" style="display:inline"
+                                                  onsubmit="return confirm('Remove this member?')">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="orgId"  value="@Model.OrganisationId" />
+                                                <input type="hidden" name="userId" value="@m.UserId" />
+                                                <button type="submit" class="btn btn-outline-danger btn-sm py-0">Remove</button>
+                                            </form>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ── Add member ────────────────────────────────────────────────────── -->
+        @if (isOwnerOrAdmin)
+        {
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase small fw-semibold mb-3">Add Member by Email</h6>
+                    <form asp-action="AddMember" method="post" class="d-flex gap-2">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="orgId" value="@Model.OrganisationId" />
+                        <input type="email" name="email" class="form-control form-control-sm"
+                               placeholder="teammate@example.com" required />
+                        <button type="submit" class="btn btn-primary btn-sm flex-shrink-0">Add</button>
+                    </form>
+                    <p class="text-muted small mt-2 mb-0">
+                        The user must already have a TaskFlow account. Alternatively, share the invite code above.
+                    </p>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function copyCode() {
+    const code = document.getElementById('invite-code').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        const toast = document.getElementById('copy-toast');
+        toast.style.display = 'block';
+        setTimeout(() => toast.style.display = 'none', 2000);
+    });
+}
+</script>
+}

@@ -32,10 +32,23 @@ namespace TaskFlow.Controllers
             if (currentUser != null && await _userManager.IsInRoleAsync(currentUser, "Developer"))
                 return RedirectToAction("MyTasks", "WorkItems");
 
-            // Fetch all data up front — the service handles includes so navigation properties
-            // are populated and we can do LINQ on them in memory without extra DB round-trips
-            var allProjects = await _projects.GetAllProjectsAsync();
-            var allItems    = await _projects.GetAllWorkItemsAsync();
+            // Admins see site-wide stats; PMs see only their orgs' data
+            var userId = _userManager.GetUserId(User)!;
+            List<Project>  allProjects;
+            List<WorkItem> allItems;
+
+            if (User.IsInRole("Admin"))
+            {
+                allProjects = await _projects.GetAllProjectsAsync();
+                allItems    = await _projects.GetAllWorkItemsAsync();
+            }
+            else
+            {
+                // GetProjectsForUserAsync includes WorkItems via Include(), so we can derive
+                // all work items from the project list without an extra DB query
+                allProjects = await _projects.GetProjectsForUserAsync(userId);
+                allItems    = allProjects.SelectMany(p => p.WorkItems).ToList();
+            }
 
             var today   = DateTime.UtcNow.Date;
             var weekEnd = today.AddDays(7);

@@ -41,6 +41,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 // Register our custom service using the interface, so controllers depend on the
 // abstraction rather than the concrete type (enables mocking in unit tests)
 builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<IOrganisationService, OrganisationService>();
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();

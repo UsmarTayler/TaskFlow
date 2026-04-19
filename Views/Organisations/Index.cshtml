@@ -1,0 +1,65 @@
+@model List<TaskFlow.Models.Organisation>
+
+@{
+    ViewData["Title"] = "Organisations";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <h3 class="mb-0">Organisations</h3>
+    <div class="d-flex gap-2">
+        <a asp-action="Join"   class="btn btn-outline-secondary">🔑 Join with Code</a>
+        <a asp-action="Create" class="btn btn-primary">+ New Organisation</a>
+    </div>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">
+        You are not a member of any organisation yet.
+        <a asp-action="Create">Create one</a> or <a asp-action="Join">join with an invite code</a>.
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var org in Model)
+        {
+            var memberCount  = org.Members.Count;
+            var projectCount = org.Projects.Count;
+            var isOwner      = org.OwnerId == User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            <div class="col-md-6 col-xl-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <a asp-action="Detail" asp-route-id="@org.OrganisationId"
+                               class="h5 fw-bold text-decoration-none text-dark lh-sm">@org.Name</a>
+                            @if (isOwner)
+                            {
+                                <span class="badge bg-warning text-dark ms-2 flex-shrink-0">Owner</span>
+                            }
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(org.Description))
+                        {
+                            <p class="text-muted small flex-grow-1 mb-3">
+                                @(org.Description.Length > 100 ? org.Description[..100] + "…" : org.Description)
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="text-muted small fst-italic flex-grow-1 mb-3">No description.</p>
+                        }
+
+                        <div class="d-flex gap-3 small text-muted mb-3">
+                            <span>👥 @memberCount member@(memberCount == 1 ? "" : "s")</span>
+                            <span>📁 @projectCount project@(projectCount == 1 ? "" : "s")</span>
+                        </div>
+
+                        <a asp-action="Detail" asp-route-id="@org.OrganisationId"
+                           class="btn btn-outline-primary btn-sm mt-auto">View →</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

@@ -66,9 +66,11 @@ namespace TaskFlow.Tests
         private static ProjectsController BuildProjectsController(
             Mock<IProjectService> svcMock,
             Mock<UserManager<ApplicationUser>> umMock,
-            string role = "Developer")
+            string role = "Developer",
+            Mock<IOrganisationService>? orgsMock = null)
         {
-            var ctrl = new ProjectsController(svcMock.Object, umMock.Object);
+            orgsMock ??= new Mock<IOrganisationService>();
+            var ctrl = new ProjectsController(svcMock.Object, orgsMock.Object, umMock.Object);
             ctrl.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext { User = BuildPrincipal(role) }
@@ -106,10 +108,15 @@ namespace TaskFlow.Tests
                 new() { ProjectId = 2, Name = "Beta"  }
             };
 
+            const string userId = "user-1";
             var svcMock = new Mock<IProjectService>();
-            svcMock.Setup(s => s.GetAllProjectsAsync()).ReturnsAsync(projects);
+            // Index uses GetProjectsForUserAsync for non-Admin roles
+            svcMock.Setup(s => s.GetProjectsForUserAsync(userId)).ReturnsAsync(projects);
 
-            var ctrl   = BuildProjectsController(svcMock, BuildUserManagerMock());
+            var umMock = BuildUserManagerMock();
+            umMock.Setup(u => u.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns(userId);
+
+            var ctrl   = BuildProjectsController(svcMock, umMock);
             var result = await ctrl.Index(null, null) as ViewResult;
 
             Assert.NotNull(result);
@@ -157,10 +164,14 @@ namespace TaskFlow.Tests
             svcMock.Setup(s => s.CreateProjectAsync(It.IsAny<Project>()))
                    .ReturnsAsync(new Project { ProjectId = 5, Name = "New" });
 
+            var orgsMock = new Mock<IOrganisationService>();
+            orgsMock.Setup(o => o.GetOrganisationsForUserAsync(It.IsAny<string>()))
+                    .ReturnsAsync(new List<Organisation>());
+
             var umMock = BuildUserManagerMock();
             umMock.Setup(u => u.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("user-1");
 
-            var ctrl  = BuildProjectsController(svcMock, umMock, "ProjectManager");
+            var ctrl  = BuildProjectsController(svcMock, umMock, "ProjectManager", orgsMock);
             var model = new CreateProjectViewModel { Name = "New Project" };
 
             // Act
@@ -174,8 +185,11 @@ namespace TaskFlow.Tests
         [Fact]
         public async Task Create_Post_ReturnsView_WhenModelInvalid()
         {
-            var svcMock = new Mock<IProjectService>();
-            var ctrl    = BuildProjectsController(svcMock, BuildUserManagerMock(), "ProjectManager");
+            var svcMock  = new Mock<IProjectService>();
+            var orgsMock = new Mock<IOrganisationService>();
+            orgsMock.Setup(o => o.GetOrganisationsForUserAsync(It.IsAny<string>()))
+                    .ReturnsAsync(new List<Organisation>());
+            var ctrl = BuildProjectsController(svcMock, BuildUserManagerMock(), "ProjectManager", orgsMock);
 
             // Simulate a validation failure by adding a model error manually
             ctrl.ModelState.AddModelError("Name", "Required");
